@@ -59,6 +59,7 @@ jobs:
       - name: Build with Jekyll
         # Outputs to the './_site' directory by default
         run: |
+          cat README.md >> docs/index.md
           cd docs && \
           bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
         env:
