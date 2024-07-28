@@ -47,9 +47,9 @@ jobs:
         run: |
           pip install pydoctor
           pydoctor --project-name=lazyseries \
-                   --project-version=1.2.0 \
-                   --project-url=https://github.com/twisted/pydoctor/ \
-                   --html-viewsource-base=https://github.com/twisted/pydoctor/tree/20.7.2 \
+                   --project-version=0.1.0 \
+                   --project-url=https://qlllllll.github.io/wildfire-prevention \
+                   --html-viewsource-base=https://github.com/qlllllll/wildfire-prevention/tree/main \
                    --make-html \
                    --html-output=docs/api \
                    --project-base-dir="." \

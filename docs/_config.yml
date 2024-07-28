@@ -1,8 +1,14 @@
-title: Just the Docs Template
-description: A starter template for a Jeykll site using the Just the Docs theme!
+title: Wildfire Prevention
+description: ""
 theme: just-the-docs
 
-url: https://just-the-docs.github.io
+url: https://qlllllll.github.io/wildfire-prevention
 
 aux_links:
-  Template Repository: https://github.com/just-the-docs/just-the-docs-template
+  GitHub: https://github.com/qlllllll/wildfire-prevention
+
+nav_external_links:
+  - title: API
+    url: ./api
+    hide_icon: false # set to true to hide the external link icon - defaults to false
+    opens_in_new_tab: false # set to true to open this link in a new tab - defaults to false
