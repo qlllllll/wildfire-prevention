@@ -34,7 +34,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '2.7' # Not needed with a .ruby-version file
+          ruby-version: '3.3' # Not needed with a .ruby-version file
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
           cache-version: 0 # Increment this number if you need to re-download cached gems
       - name: Setup Pages
@@ -58,21 +58,22 @@ jobs:
                    ./lazyseries
       - name: Build with Jekyll
         if: always()
-        run: |
-          cat README.md >> ./docs/index.md
-        env:
-          JEKYLL_ENV: production
-      - name: Build with Jekyll
-        if: always()
         # Outputs to the './_site' directory by default
         working-directory: ./docs
         run: |
           cat ../README.md >> index.md
-          gem install bundler jekyll
-          bundle install
-          bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
+          # gem install bundler jekyll
+          # bundle install
+          # bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
+          # cp -r _site ../_site
         env:
           JEKYLL_ENV: production
+      - name: Build with Jekyll
+        if: always()
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
       - name: Upload artifact
         if: always()
         # Automatically uploads an artifact from the './_site' directory by default
