@@ -83,8 +83,6 @@ distances = dist(bounds_vegetation, bounds_house)
 
 # Group distances by object (house) and find the minimum distance to vegetation
 dist_house_to_veg_min = dist_by_obj(distances, 'house.', min)
-
-#### Checking for Nearest Object Existence
 ```
 
 To check if the nearest objects exist within a specified distance, use the `nearest_obj_exist` function. This function can also visualize the results if needed.
