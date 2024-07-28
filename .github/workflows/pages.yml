@@ -59,6 +59,7 @@ jobs:
       - name: Build with Jekyll
         if: always()
         # Outputs to the './_site' directory by default
+        working-directory: ./docs
         run: |
           cat README.md >> docs/index.md
           cd docs && \
