@@ -92,7 +92,7 @@ from object_detection import nearest_obj_exist
 
 # Check if fire hydrants exist within 0.001 distance from sample hydrants map
 sample_hydrants = ...
-nearest_exist = nearest_obj_exist(sample_hydrants, dfs['fire hydrant'], pts, 0.001, bounded_gdf, True)
+nearest_exist = nearest_obj_exist(sample_hydrants, detection_dict['fire hydrant'], sample_points, max_dist=0.001, visualize=True)
 ```
 
 To estimate the geographic locations of objects from bounding boxes, use the `geoloc_est_obj` function. These functions can also support visualizing the estimated locations.
