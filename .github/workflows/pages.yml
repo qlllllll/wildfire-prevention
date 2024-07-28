@@ -55,7 +55,7 @@ jobs:
                    --project-base-dir="." \
                    --docformat=epytext \
                    --intersphinx=https://docs.python.org/3/objects.inv \
-                   .
+                   .lazyseries
       - name: Build with Jekyll
         # Outputs to the './_site' directory by default
         run: |
