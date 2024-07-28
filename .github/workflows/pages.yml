@@ -63,11 +63,13 @@ jobs:
         env:
           JEKYLL_ENV: production
       - name: Build with Jekyll
+        if: always()
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./docs
           destination: ./_site
       - name: Upload artifact
+        if: always()
         # Automatically uploads an artifact from the './_site' directory by default
         uses: actions/upload-pages-artifact@v3
 
