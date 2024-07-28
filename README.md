@@ -33,7 +33,7 @@ bbox = get_area_bbox(area)
 sample_points = generate_network_pts(bbox, sample_distance=0.00015)
 
 # Download Google Street View images using the generated sample points
-download_gsv_images(sample_points, save_dir='gsv_images')
+load_gsv_images(sample_points, save_dir='gsv_images')
 ```
 
 #### Object Detection on Series of Images
@@ -47,10 +47,10 @@ For object detection on a series of images loaded from a folder, the following f
 - `estimate_obj_bounds`: Estimates the corner coordinates of the 3D bounding box for the object series.
 
 ```python
-from object_detection import depth_estimate, estimate_3d, obj_detection, estimate_obj_bounds, reformat_detections
+from object_detection import load_images, depth_estimate, estimate_3d, obj_detection, estimate_obj_bounds, reformat_detections
 
 # Load your images into a pd.Series
-images = ...
+images = load_images(folder_path='./gsv_images')
 
 # Estimate depth maps for the images
 depth_maps = depth_estimate(images)
