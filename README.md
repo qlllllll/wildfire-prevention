@@ -100,6 +100,6 @@ To estimate the geographic locations of objects from bounding boxes, use the `ge
 ```python
 from object_detection import geoloc_est_obj
 
-# Check if fire hydrants exist within 0.001 distance from sample hydrants map
+# Estimate geographic locations for the detected objects
 geoloc_results = geoloc_est_obj(bounds_vegetation, sample_points, visualize=True)
 ```
