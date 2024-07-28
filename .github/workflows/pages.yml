@@ -57,6 +57,7 @@ jobs:
                    --intersphinx=https://docs.python.org/3/objects.inv \
                    ./lazyseries
       - name: Build with Jekyll
+        if: always()
         # Outputs to the './_site' directory by default
         run: |
           cat README.md >> docs/index.md
