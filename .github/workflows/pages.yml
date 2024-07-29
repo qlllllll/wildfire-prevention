@@ -46,16 +46,7 @@ jobs:
       - name: API Doc
         run: |
           pip install pydoctor
-          pydoctor --project-name=lazyseries \
-                   --project-version=0.1.0 \
-                   --project-url=https://qlllllll.github.io/wildfire-prevention \
-                   --html-viewsource-base=https://github.com/qlllllll/wildfire-prevention/tree/main \
-                   --make-html \
-                   --html-output=docs/api \
-                   --project-base-dir="." \
-                   --docformat=epytext \
-                   --intersphinx=https://docs.python.org/3/objects.inv \
-                   ./lazyseries || true
+          pydoctor ./lazyseries || true
       - name: Build with Jekyll
         if: always()
         # Outputs to the './_site' directory by default

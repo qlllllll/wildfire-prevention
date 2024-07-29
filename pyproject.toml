@@ -1,0 +1,10 @@
+[tool.pydoctor]
+project-name = "lazyseries"
+project-version = "0.1.0"
+project-url = "https://qlllllll.github.io/wildfire-prevention"
+html-viewsource = "https://github.com/qlllllll/wildfire-prevention/tree/main"
+make-html = true
+html-output = "docs/api"
+project-base-dir = "."
+docformat = "epytext"
+intersphinx = "https://docs.python.org/3/objects.inv"
