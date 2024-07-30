@@ -1,4 +1,4 @@
-\# Wildfire Prevention
+# Wildfire Prevention
 
 This Python module performs object detection on Google Street View photos fetched from specified geolocation boundaries. It allows downloading Google Street View images at evenly spaced points along the road network within the boundary. The module uses Grounding-SAM for detecting and segmenting objects based on text prompts from the images. Additionally, it estimates distances from image metadata geolocation using Zoe-Depth and includes custom functions to analyze the geospatial relationships between objects.
 
