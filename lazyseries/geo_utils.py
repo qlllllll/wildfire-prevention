@@ -17,7 +17,7 @@ from scipy.spatial.distance import cdist
 import itertools
 from typing import Any, List, Dict, Optional, Union, Tuple
 
-GOOGLE_MAPS_API_KEY = "AIzaSyBfDlNnEsnNGbp5bxzGI3xpZTHOBHzCHdQ"
+GOOGLE_MAPS_API_KEY = ...
 PARCEL_URL = "https://data.cityofberkeley.info/api/geospatial/bhxd-e6up?method=export&format=GeoJSON"
 
 
@@ -43,7 +43,7 @@ def perpendicular_headings(line: LineString, original_heading: float, round_base
     Args:
     - line (LineString): The input LineString.
     - original_heading (float): The original heading in degrees.
-    - round_base (int): The base to which the headings should be rounded.
+    - round_base (int): The base to which the headings should be rounded. Default is 5.
 
     Returns:
     - Tuple[float, float]: The two perpendicular headings.
@@ -112,13 +112,14 @@ def clip_gdf_to_bbox(gdf: gpd.GeoDataFrame, bbox: Polygon, crs: str = "EPSG:4326
     bounded_gdf = gpd.overlay(gdf, bbox_gdf, how='intersection')
     return bounded_gdf
 
-def generate_network_pts(bbox: Polygon, samp_dist: float = 0.00015) -> gpd.GeoDataFrame:
+def generate_network_pts(bbox: Polygon, samp_dist: float = 0.00015, min_road_len: int = 5) -> gpd.GeoDataFrame:
     """
     Generate network points within a bounding box.
 
     Args:
     - bbox (Polygon): The bounding box.
-    - samp_dist (float): The sampling distance between points.
+    - samp_dist (float): The sampling distance between points. Default is 0.00015.
+    - min_road_len (int): The minimum length of roads to consider. Default is 5.
 
     Returns:
     - gpd.GeoDataFrame: The generated network points.
@@ -126,7 +127,7 @@ def generate_network_pts(bbox: Polygon, samp_dist: float = 0.00015) -> gpd.GeoDa
     G = ox.graph.graph_from_polygon(bbox)
     nodes, edges = ox.graph_to_gdfs(G)
     edges = edges[edges['highway'].isin(['residential', 'tertiary'])][['osmid', 'length', 'geometry']]
-    edges = edges[edges['length']>8]
+    edges = edges[edges['length']>min_road_len]
     edges['points'] = edges.apply(lambda row: interpolate(row['geometry'], samp_dist), axis=1)
     edges['heading'] = edges['geometry'].apply(lambda x: round(heading(x)))
     pts = edges.explode('points')
@@ -271,7 +272,7 @@ def load_gsv_meta_from_coords(
     return df.progress_apply(get_single_gsv, axis=1)
 
 def load_gsv_img_from_coords(
-    df: pd.DataFrame, pt_label: str = 'points', heading_label: str = 'perp_heading', size: str = '640x640', key: str = GOOGLE_MAPS_API_KEY) -> None:
+    df: pd.DataFrame, save_dir='gsv_images', pt_label: str = 'points', heading_label: str = 'perp_heading', size: str = '640x640', key: str = GOOGLE_MAPS_API_KEY) -> None:
     """
     Load Google Street View images from coordinates.
 
@@ -285,7 +286,6 @@ def load_gsv_img_from_coords(
     Returns:
     - None
     """
-    save_dir = 'gsv_images'
     os.makedirs(save_dir, exist_ok=True)
 
     def get_single_gsv(row):
