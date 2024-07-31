@@ -46,7 +46,7 @@ jobs:
       - name: API Doc
         run: |
           pip install pydoctor
-          pydoctor ./lazyseries || true
+          pydoctor ./src || true
       - name: Build with Jekyll
         if: always()
         # Outputs to the './_site' directory by default
