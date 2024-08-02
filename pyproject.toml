@@ -1,8 +1,8 @@
 [tool.pydoctor]
 project-name = "lazyseries"
 project-version = "0.1.0"
-project-url = "https://qlllllll.github.io/wildfire-prevention"
-html-viewsource = "https://github.com/qlllllll/wildfire-prevention/tree/main"
+project-url = "https://qlllllll.github.io/fire-risk-object-detection"
+html-viewsource = "https://github.com/qlllllll/fire-risk-object-detection/tree/main"
 make-html = true
 html-output = "docs/api"
 project-base-dir = "."
