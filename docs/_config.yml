@@ -1,14 +1,14 @@
-title: Wildfire Prevention
+title: Fire Risk Object Detection
 description: ""
 theme: just-the-docs
 
-url: https://qlllllll.github.io/wildfire-prevention
+url: https://qlllllll.github.io/fire-risk-object-detection
 
 aux_links:
-  GitHub: https://github.com/qlllllll/wildfire-prevention
+  GitHub: https://github.com/qlllllll/fire-risk-object-detection
 
 nav_external_links:
   - title: API
-    url: https://qlllllll.github.io/wildfire-prevention/api
+    url: https://qlllllll.github.io/fire-risk-object-detection/api
     hide_icon: false # set to true to hide the external link icon - defaults to false
     opens_in_new_tab: false # set to true to open this link in a new tab - defaults to false
