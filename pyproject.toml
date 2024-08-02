@@ -8,4 +8,4 @@ html-output = "docs/api"
 project-base-dir = "."
 docformat = "epytext"
 intersphinx = "https://docs.python.org/3/objects.inv"
-privacy = ['HIDDEN:src.geo_utils.GOOGLE_MAPS_API_KEY']
+privacy = ['HIDDEN:src.geo_utils.GOOGLE_MAPS_API_KEY', 'HIDDEN:src.geo_utils.PARCEL_URL', 'HIDDEN:src.object_detection_utils.DEVICE']
