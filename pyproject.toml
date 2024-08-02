@@ -1,5 +1,5 @@
 [tool.pydoctor]
-project-name = "lazyseries"
+project-name = "object-detection"
 project-version = "0.1.0"
 project-url = "https://qlllllll.github.io/fire-risk-object-detection"
 html-viewsource = "https://github.com/qlllllll/fire-risk-object-detection/tree/main"
