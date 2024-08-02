@@ -6,7 +6,7 @@ This Python module performs object detection on Google Street View photos fetche
 
 Install from git with:
 ```bash
-git clone https://github.com/qlllllll/wildfire-prevention.git
+git clone https://github.com/qlllllll/fire-risk-object-detection.git
 pip install -r requirements.txt
 ```
 
