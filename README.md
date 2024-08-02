@@ -30,7 +30,7 @@ area = 'Northside, Berkeley, CA'
 bbox = get_area_bbox(area)
 
 # Generate sample points along the road network within the bounding box
-sample_points = generate_network_pts(bbox, sample_distance=0.00015)
+sample_points = generate_network_pts(bbox, samp_dist=0.00015)
 
 # Download Google Street View images using the generated sample points
 load_gsv_images(sample_points, save_dir='gsv_images')
@@ -41,65 +41,65 @@ load_gsv_images(sample_points, save_dir='gsv_images')
 For object detection on a series of images loaded from a folder, the following functions operate on `pd.Series` for better readability and flow:
 
 - `depth_estimate`: Returns a series of depth maps approximated with Zoe-Depth.
-- `estimate_3d`: Projects pixels onto a 3D plane using a sample camera intrinsic matrix.
-- `obj_detection`: Returns a series of `DetectionResult` objects, which include [score, label, box, mask] from Grounding-SAM.
+- `convert_depth_to_coords`: Projects pixels onto a 3D plane using a sample camera intrinsic matrix.
+- `object_grounded_segmentation`: Returns a series of `DetectionResult` objects, which include [score, label, box, mask] from Grounding-SAM.
 - `reformat_detections`: Returns a dictionary of `pd.Series` grouped by label.
-- `estimate_obj_bounds`: Estimates the corner coordinates of the 3D bounding box for the object series.
+- `generate_3d_bounding_boxes`: Estimates the corner coordinates of the 3D bounding box for the object series.
 
 ```python
-from object_detection import load_images, depth_estimate, estimate_3d, obj_detection, estimate_obj_bounds, reformat_detections
+from object_detection_utils import load_images, depth_estimate, convert_depth_to_coords, object_grounded_segmentation, generate_3d_bounding_boxes, reformat_detections
 
 # Load your images into a pd.Series
-images = load_images(folder_path='./gsv_images')
+images = load_images(folder_path='./gsv_images')[:10]
 
 # Estimate depth maps for the images
 depth_maps = depth_estimate(images)
 
 # Project pixels onto a 3D plane
-coords = estimate_3d(depth_maps)
+coords = convert_depth_to_coords(depth_maps)
 
 # Perform object detection
-detections = obj_detection(images, ['vegetation.', 'house.', 'fire hydrant.'])
+detections = object_grounded_segmentation(images, ['vegetation', 'house', 'fire hydrant'])
 
 # Reformat detections into a dictionary grouped by label
 detection_dict = reformat_detections(detections)
 
 # Estimate 3D bounding boxes for specific objects
-bounds_vegetation = estimate_obj_bounds(detection_dict['vegetation.'], coords, 'vegetation.')
-bounds_house = estimate_obj_bounds(detection_dict['house.'], coords, 'house.')
+bounds_vegetation = generate_3d_bounding_boxes(detection_dict['vegetation'], coords, 'vegetation')
+bounds_house = generate_3d_bounding_boxes(detection_dict['house'], coords, 'house')
 ```
 
 #### Geospatial Relationships between Objects
 To analyze the geospatial relationships between detected objects, use the following functions:
 
 - `dist`: Calculates the minimum distances between two sets of bounding boxes.
-- `dist_by_obj`: Groups distances by object and applies a specified function to the minimum distances.
+- `group_distances`: Groups distances by object and applies a specified function to the minimum distances.
 
 ```python
-from object_detection import dist, dist_by_obj
+from object_detection_utils import dist, group_distances
 
 # Calculate the minimum distances between vegetation and house bounding boxes
-distances = dist(bounds_vegetation, bounds_house)
+distances = dist(bounds_vegetation, bounds_house, np.min)
 
 # Group distances by object (house) and find the minimum distance to vegetation
-dist_house_to_veg_min = dist_by_obj(distances, 'house.', min)
+dist_house_to_veg_min = group_distances(distances, 'house', np.min)
 ```
 
-To check if the nearest objects exist within a specified distance, use the `nearest_obj_exist` function. This function can also visualize the results if needed.
+To check if the nearest objects exist within a specified distance, use the `nearest_object_existence` function. This function can also visualize the results if needed.
 
 ```python
-from object_detection import nearest_obj_exist
+from object_detection_utils import nearest_object_existence
 
 # Check if fire hydrants exist within 0.001 distance from sample hydrants map
 sample_hydrants = ...
-nearest_exist = nearest_obj_exist(sample_hydrants, detection_dict['fire hydrant'], sample_points, max_dist=0.001, visualize=True)
+nearest_exist = nearest_object_existence(sample_hydrants, detection_dict['fire hydrant'], meta=sample_points, max_dist=0.001, visualize=True)
 ```
 
-To estimate the geographic locations of objects from bounding boxes, use the `geoloc_est_obj` function. These functions can also support visualizing the estimated locations.
+To estimate the geographic locations of objects from bounding boxes, use the `estimate_object_locations` function. These functions can also support visualizing the estimated locations.
 
 ```python
-from object_detection import geoloc_est_obj
+from object_detection_utils import estimate_object_locations
 
 # Estimate geographic locations for the detected objects
-geoloc_results = geoloc_est_obj(bounds_vegetation, sample_points, visualize=True)
+geoloc_results = estimate_object_locations(bounds_vegetation, meta=sample_points, visualize=True)
 ```
