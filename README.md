@@ -65,8 +65,8 @@ detections = object_grounded_segmentation(images, ['vegetation', 'house', 'fire 
 detection_dict = reformat_detections(detections)
 
 # Estimate 3D bounding boxes for specific objects
-bounds_vegetation = generate_3d_bounding_boxes(detection_dict['vegetation'], coords, 'vegetation')
-bounds_house = generate_3d_bounding_boxes(detection_dict['house'], coords, 'house')
+detection_dict['vegetation']['coords'] = generate_3d_bounding_boxes(detection_dict['vegetation']['mask'], coords, 'vegetation')
+detection_dict['house']['coords'] = generate_3d_bounding_boxes(detection_dict['house']['mask'], coords, 'house')
 ```
 
 #### Geospatial Relationships between Objects
