@@ -79,10 +79,10 @@ To analyze the geospatial relationships between detected objects, use the follow
 from object_detection_utils import dist, group_distances
 
 # Calculate distances between vegetation and house coordinates.
-distances = dist(re_detections[re_detections['label']=='vegetation'][['image_index', 'coords']],re_detections[re_detections['label']=='house'][['image_index', 'coords']], 'veg', 'house')
+distances = dist(re_detections[['label','image_index', 'coords']], 'vegetation', 'house')
 
 # Group the distances to vegetation by applying a minimum threshold and filter.
-dist_house_to_veg_min = group_distances(distances, re_detections, 'veg', 'house', fn=min)
+dist_house_to_veg_min = group_distances(distances, re_detections, 'vegetation', 'house', fn=min)
 ```
 
 To check if the nearest objects exist within a specified distance, use the `nearest_object_existence` function. This function can also visualize the results if needed.
