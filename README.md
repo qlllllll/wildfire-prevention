@@ -62,11 +62,11 @@ coords = convert_depth_to_coords(depth_maps)
 detections = object_grounded_segmentation(images, ['vegetation', 'house', 'fire hydrant'])
 
 # Reformat detections into a dictionary grouped by label
-detection_dict = reformat_detections(detections)
+re_detections = reformat_detections(detections)
 
-# Estimate 3D bounding boxes for specific objects
-detection_dict['vegetation']['coords'] = generate_3d_bounding_boxes(detection_dict['vegetation']['mask'], coords, 'vegetation')
-detection_dict['house']['coords'] = generate_3d_bounding_boxes(detection_dict['house']['mask'], coords, 'house')
+# Estimate 3D bounding boxes for objects
+re_detections['coords'] = generate_3d_bounding_boxes(re_detections, coords)
+re_detections.head(5)
 ```
 
 #### Geospatial Relationships between Objects
@@ -79,10 +79,10 @@ To analyze the geospatial relationships between detected objects, use the follow
 from object_detection_utils import dist, group_distances
 
 # Calculate distances between vegetation and house coordinates.
-distances = dist(detection_dict['vegetation']['coords'], detection_dict['house']['coords'], 'veg', 'house')
+distances = dist(re_detections[re_detections['label']=='vegetation'][['image_index', 'coords']],re_detections[re_detections['label']=='house'][['image_index', 'coords']], 'veg', 'house')
 
 # Group the distances to vegetation by applying a minimum threshold and filter.
-dist_house_to_veg_min = group_distances(distances, detection_dict['vegetation'], detection_dict['house'], fn=min, thres=0.5)
+dist_house_to_veg_min = group_distances(distances, re_detections, 'veg', 'house', fn=min)
 ```
 
 To check if the nearest objects exist within a specified distance, use the `nearest_object_existence` function. This function can also visualize the results if needed.
@@ -92,7 +92,7 @@ from object_detection_utils import nearest_object_existence
 
 # Check if fire hydrants exist within 0.001 distance from sample hydrants map
 sample_hydrants = ...
-nearest_exist = nearest_object_existence(sample_hydrants, detection_dict['fire hydrant'], meta=sample_points, max_dist=0.001, visualize=True)
+nearest_exist = nearest_object_existence(sample_hydrants, re_detections[re_detections['label']=='fire hydrant'], meta=sample_points, max_dist=0.001, visualize=True)
 ```
 
 To estimate the geographic locations of objects from bounding boxes, use the `estimate_object_locations` function. These functions can also support visualizing the estimated locations.
@@ -101,5 +101,5 @@ To estimate the geographic locations of objects from bounding boxes, use the `es
 from object_detection_utils import estimate_object_locations
 
 # Estimate geographic locations for the detected objects
-geoloc_results = estimate_object_locations(bounds_vegetation, meta=sample_points, visualize=True)
+geoloc_results = estimate_object_locations(re_detections[['image_index','coords', 'label']], meta=sample_points, visualize=True)
 ```
