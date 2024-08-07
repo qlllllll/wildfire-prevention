@@ -3,6 +3,7 @@ import numpy as np
 from shapely.geometry import Point, LineString, Polygon, box, MultiPolygon
 from shapely.ops import nearest_points
 import matplotlib.pyplot as plt
+from matplotlib.cm import get_cmap
 from PIL import Image, ImageDraw, ImageFont
 import pandas as pd
 import geopandas as gpd
@@ -11,6 +12,8 @@ from scipy.spatial.distance import cdist
 from matplotlib.patches import Circle
 import itertools
 import os
+import sys
+from contextlib import contextmanager
 
 import cv2
 import torch
@@ -23,7 +26,7 @@ from typing import Any, List, Dict, Optional, Union, Tuple
 
 from transformers import AutoModelForMaskGeneration, AutoProcessor, pipeline
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda:5" if torch.cuda.is_available() else "cpu"
 
 @dataclass
 class BoundingBox:
@@ -53,10 +56,6 @@ class BoundingBox:
 
 @dataclass
 class DetectionResult:
-    score: float
-    label: str
-    box: BoundingBox
-    mask: Optional[np.ndarray] = None  
     """
     A class to represent the result of an object detection.
 
@@ -66,6 +65,10 @@ class DetectionResult:
     - box (BoundingBox): The bounding box of the detected object.
     - mask (Optional[np.ndarray]): The segmentation mask of the detected object, if available.
     """
+    score: float
+    label: str
+    box: BoundingBox
+    mask: Optional[np.ndarray] = None  
 
     @classmethod
     def from_dict(cls, detection_dict: Dict) -> 'DetectionResult':
@@ -112,8 +115,8 @@ def polygon_to_mask(polygon: List[Tuple[int, int]], image_shape: Tuple[int, int]
     Convert a polygon to a segmentation mask.
 
     Args:
-    - polygon (list): List of (x, y) coordinates representing the vertices of the polygon.
-    - image_shape (tuple): Shape of the image (height, width) for the mask.
+    - polygon (List[Tuple[int, int]]): List of (x, y) coordinates representing the vertices of the polygon.
+    - image_shape (Tuple[int, int]): Shape of the image (height, width) for the mask.
 
     Returns:
     - np.ndarray: Segmentation mask with the polygon filled.
@@ -146,7 +149,7 @@ def load_image(image_str: str) -> Image.Image:
 
     return image
 
-def load_images(folder_path='./gsv_images', name='gsv'):
+def load_images(folder_path: str = './gsv_images', name: str = 'gsv') -> pd.Series:
     """
     Load images from a specified folder into a pandas Series.
 
@@ -158,7 +161,7 @@ def load_images(folder_path='./gsv_images', name='gsv'):
     - pd.Series: A pandas Series containing the loaded images.
     """
     
-    def open_img(file_path):
+    def open_img(file_path: str) -> Image.Image:
         with Image.open(file_path) as img:
             return img.copy()
 
@@ -342,34 +345,36 @@ def object_grounded_segmentation(image_series: pd.Series, text_prompt: List[str]
     detector_id = "IDEA-Research/grounding-dino-tiny"
     segmenter_id = "facebook/sam-vit-base"
     
-    detections = image_series.apply(lambda img: grounded_segmentation(image=img, labels=text_prompt, threshold=0.3, polygon_refinement=True, detector_id=detector_id,
-    segmenter_id=segmenter_id))
+    detections = image_series.apply(lambda img: grounded_segmentation(image=img, labels=text_prompt, threshold=0.3, polygon_refinement=True, detector_id=detector_id, segmenter_id=segmenter_id))
 
     return detections 
 
-def reformat_detections(detections: pd.Series) -> Dict[str, pd.Series]:
+def reformat_detections(detections: pd.Series) -> pd.DataFrame:
     """
-    Reformat detections into a structured dictionary of Series grouped by label.
+    Reformat detections into a structured DataFrame grouped by label.
 
     Args:
     - detections (pd.Series): Series of detection results, where each element is a list of DetectionResult objects.
 
     Returns:
-    - Dict[str, pd.Series]: Dictionary of pd.Series grouped by label, with each pd.Series containing masks and the original index.
+    - pd.DataFrame: DataFrame grouped by label, with each row containing masks, the original index, and other detection information.
     """
-    obj = detections.reset_index(name='detections').explode('detections')
+    df = detections.to_frame('detections')
+
+    df = df.explode('detections')
+
+    df['image_index'] = df.index
+    df['label'] = df['detections'].apply(lambda x: x.label)
+    df['mask'] = df['detections'].apply(lambda x: x.mask)
+    df['box'] = df['detections'].apply(lambda x: x.box.xyxy)
+    df['score'] = df['detections'].apply(lambda x: x.score)
     
-    data = [{
-        'label': row['detections'].label,
-        'mask': row['detections'].mask,
-        'box': row['detections'].box,
-        'image_index': row['index']
-    } for _, row in obj.iterrows()]
+    df = df.sort_values(by=['image_index', 'label'])
+    df.reset_index(inplace=True, drop=True)
+    df.drop(columns=['detections'], inplace=True)
+    df['object_index'] = df.groupby(['image_index', 'label']).cumcount()
     
-    full_df = pd.DataFrame(data)
-    grouped = full_df.groupby('label')
-    
-    return {label: group.drop(['label'], axis=1).groupby('original_index').agg(list) for label, group in grouped}
+    return df
 
 def get_intrinsics(H,W):
     """
@@ -429,6 +434,22 @@ def depth_to_points(depth, R=None, t=None):
     # depth_2 = pts3D_2[:, :, :, 2, :]  # b,1,h,w
     return pts3D_2[:, :, :, :3, 0][0].reshape(-1, 3)
 
+@contextmanager
+def suppress_output():
+    """
+    Context manager to suppress stdout and stderr.
+    """
+    with open(os.devnull, 'w') as devnull:
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        try:
+            sys.stdout = devnull
+            sys.stderr = devnull
+            yield
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+
 def depth_estimate(img_series: pd.Series) -> pd.Series:
     """
     Estimate depth from a series of images.
@@ -440,7 +461,10 @@ def depth_estimate(img_series: pd.Series) -> pd.Series:
     - pd.Series: Series of depth maps.
     """
     repo = "isl-org/ZoeDepth"
-    model_zoe_k = torch.hub.load(repo, "ZoeD_K", pretrained=True)
+    
+    with suppress_output():
+        model_zoe_k = torch.hub.load(repo, "ZoeD_K", pretrained=True)
+    
     zoe = model_zoe_k.to(DEVICE)
     return img_series.apply(zoe.infer_pil)
 
@@ -467,37 +491,32 @@ def calculate_3d_bounding_boxes(row: pd.Series) -> Optional[List[List[Tuple[floa
     Returns:
     - Optional[List[List[Tuple[float, float, float]]]]: List of 3D bounding boxes.
     """
-    masks, coords = row[0], row[1]
-    if masks is None:
+    mask, coords = row['mask'], row['gsv']
+    if mask is None:
         return None 
     
-    corners = [
-        generate_box_corners(
-            np.concatenate([
+    corners = tuple(generate_box_corners(
+                np.concatenate((
                 np.min(image_3d_coords := coords[mask.flatten() == 255], axis=0),
                 np.max(image_3d_coords, axis=0)
-            ])
-        )
-        for mask in masks
-    ]
+            ))
+        ))
 
     return corners
 
-def generate_3d_bounding_boxes(mask_series: pd.Series, coords_series: pd.Series, label: str) -> pd.Series:
+def generate_3d_bounding_boxes(mask_series: pd.DataFrame, coords_series: pd.Series) -> pd.Series:
     """
     Generate 3D bounding boxes for each object.
 
     Args:
-    - mask_series (pd.Series): Series containing the masks.
+    - mask_series (pd.DataFrame): DataFrame containing the masks.
     - coords_series (pd.Series): Series containing the coordinates.
-    - label (str): The label for the bounding boxes.
 
     Returns:
     - pd.Series: Series containing the 3D bounding boxes, with the name set to the label.
     """
-    merged = pd.merge(mask_series, coords_series, left_index=True, right_index=True)
+    merged = pd.merge(mask_series, coords_series, left_on='image_index', right_index=True)
     bounds = merged.apply(calculate_3d_bounding_boxes, axis=1)
-    bounds.name = label
 
     return bounds
 
@@ -514,53 +533,62 @@ def generate_box_corners(bounds: np.ndarray) -> List[Tuple[float, float, float]]
     min_x, min_y, min_z, max_x, max_y, max_z = bounds
     return list(itertools.product([min_x, max_x], [min_y, max_y], [min_z, max_z]))
 
-def stat_distance(row: pd.Series, fn: callable = np.min) -> float:
+def stat_distance(row: pd.Series, label1: str, label2: str, fn: callable = np.min) -> float:
     """
     Calculate a specified statistical measure (e.g., minimum, maximum) of distances between two sets of points.
 
     Args:
     - row (pd.Series): Series containing two sets of points.
+    - label1 (str): Label for the first set of points.
+    - label2 (str): Label for the second set of points.
     - fn (Callable): Function to apply to the calculated distances (e.g., min, max). Default is min.
 
     Returns:
     - float: The result of applying the specified function to the distances between the two sets of points.
     """
-    pts1 = np.array(row[0])
-    pts2 = np.array(row[1])
+    pts1 = np.array(row[f"coords_{label1}"])
+    pts2 = np.array(row[f"coords_{label2}"])
     distances = cdist(pts1, pts2)
     return fn(distances)
 
-def dist(bounds1: pd.Series, bounds2: pd.Series, fn: callable = np.min) -> pd.DataFrame:
+def dist(bounds1: pd.Series, bounds2: pd.Series, label1: str, label2: str, fn: callable = np.min) -> pd.DataFrame:
     """
     Calculate the distances between two sets of bounding boxes.
 
     Args:
     - bounds1 (pd.Series): Series containing the first set of bounding boxes.
     - bounds2 (pd.Series): Series containing the second set of bounding boxes.
+    - label1 (str): Label for the first set of bounding boxes.
+    - label2 (str): Label for the second set of bounding boxes.
     - fn (Callable): Function to apply to the calculated distances (e.g., min, max). Default is min.
 
     Returns:
     - pd.DataFrame: DataFrame containing the distances.
     """
-    merged = pd.merge(bounds1, bounds2, left_index=True, right_index=True).explode(bounds1.name).explode(bounds2.name)
-    merged['distance'] = merged.apply(lambda row: stat_distance(row, fn), axis=1)
+    merged = pd.merge(bounds1, bounds2, left_on='image_index', right_on='image_index', suffixes=(f'_{label1}', f'_{label2}'))
+    merged['distance'] = merged.apply(lambda row: stat_distance(row, label1, label2, fn), axis=1)
     
     return merged
 
-def group_distances(distances: pd.DataFrame, label: str, fn: callable = min) -> pd.DataFrame:
+def group_distances(distances: pd.DataFrame, detects: pd.DataFrame, label1: str, label2: str, fn: callable = min) -> pd.DataFrame:
     """
     Group distances by object and apply a function to the distances.
 
     Args:
     - distances (pd.DataFrame): DataFrame containing the distances.
-    - label (str): Column name to group by.
+    - detects (pd.DataFrame): DataFrame containing the detections.
+    - label1 (str): Label for the first set of detections.
+    - label2 (str): Label for the second set of detections.
     - fn (Callable): Function to apply to the distances. Default is min.
+    - thres (float): Threshold for distance grouping.
 
     Returns:
     - pd.DataFrame: DataFrame containing the grouped distances.
     """
-    distances[label] = distances[label].apply(tuple)
-    return distances.groupby(['image_index', label])['distance'].agg(fn).reset_index().groupby('image_index')['distance'].agg(list)
+    grouped_distances = distances.groupby(['image_index', f"coords_{label1}"]).agg(fn).reset_index()
+    merged_df = grouped_distances.merge(detects[['mask', 'box', 'score', 'object_index', 'coords']], left_on=f"coords_{label1}", right_on='coords').drop(columns=['coords'])
+    merged_df = merged_df.merge(detects[['mask', 'box', 'score', 'object_index', 'coords']], left_on=f"coords_{label2}", right_on='coords', suffixes=(f'_{label1}', f'_{label2}')).drop(columns=['coords'])
+    return merged_df   
 
 def nearest_object_existence(
     gdf: gpd.GeoDataFrame, objs: gpd.GeoDataFrame, meta: pd.DataFrame, 
@@ -574,7 +602,6 @@ def nearest_object_existence(
     - objs (gpd.GeoDataFrame): GeoDataFrame containing objects.
     - meta (pd.DataFrame): DataFrame containing metadata.
     - max_dist (float): Maximum distance to consider for nearest objects.
-    - parcels (Optional[gpd.GeoDataFrame]): GeoDataFrame containing parcel geometries.
     - visualize (bool): Whether to visualize the results.
 
     Returns:
@@ -587,7 +614,6 @@ def nearest_object_existence(
     
     if visualize: 
         fig, ax = plt.subplots(figsize=(8, 8))
-
         gdf.plot(ax=ax)
         obj_meta.plot(ax=ax)
         true_index = gdf[nearest_exist].index[0]
@@ -598,58 +624,58 @@ def nearest_object_existence(
         gpd.GeoDataFrame(meta).plot(ax=ax, linewidth=1)
     return nearest_exist
 
-def estimate_geolocations(bounds: List[np.ndarray], img_loc: Point, heading: float, lat_scale: float = 111320) -> List[Point]:
+def estimate_geolocations(bounds: List[Tuple[float, float, float]], img_loc: Point, heading: float, lat_scale: float = 111320) -> List[Point]:
     """
     Estimate geographic locations from bounding boxes.
 
     Args:
-    - bounds (List[np.ndarray]): List of bounding boxes.
-    - img_loc (Point): Image location.
-    - heading (float): Heading angle.
-    - lat_scale (float): Latitude scale.
+    - bounds (List[Tuple[float, float, float]]): List of tuples, where each tuple represents a point in the bounding box as (x, y, z).
+    - img_loc (Point): Geographic location of the image (longitude, latitude).
+    - heading (float): Heading angle in degrees.
+    - lat_scale (float): Scaling factor for latitude to meters. Default is 111320.
 
     Returns:
-    - List[Point]: List of estimated geographic locations.
+    - List[Point]: List of estimated geographic locations as shapely Point objects.
     """
-    geolocs = []
-
     lon, lat = img_loc.x, img_loc.y
     lon_scale = lat_scale * np.cos(np.radians(lat))
-    
-    for bd in bounds: 
-        x, y, z = np.mean(bd, axis=0)
-        heading_rad = math.radians(heading)
-        
-        delta_lat = z / lat_scale * np.cos(heading_rad) - x / lon_scale * np.sin(heading_rad)
-        delta_lon = x / lon_scale * np.cos(heading_rad) + z / lat_scale * np.sin(heading_rad)
-           
-        geolocs.append(Point(lon + delta_lon, lat + delta_lat))
-        
-    return geolocs
 
-def estimate_object_locations(bounds: pd.Series, meta: pd.DataFrame, visualize: bool = False) -> gpd.GeoSeries:
+    x, y, z = np.mean(bounds, axis=0)
+    heading_rad = math.radians(heading)
+    
+    delta_lat = z / lat_scale * np.cos(heading_rad) - x / lon_scale * np.sin(heading_rad)
+    delta_lon = x / lon_scale * np.cos(heading_rad) + z / lat_scale * np.sin(heading_rad)
+    
+    return Point(lon + delta_lon, lat + delta_lat)
+
+def estimate_object_locations(bounds: pd.DataFrame, meta: pd.DataFrame, visualize: bool = False) -> gpd.GeoSeries:
     """
     Estimate geographic locations for each object.
 
     Args:
-    - bounds (pd.Series): Series of bounding boxes grouped by label.
+    - bounds (pd.DataFrame): DataFrame of bounding boxes grouped by label.
     - meta (pd.DataFrame): DataFrame containing metadata.
     - visualize (bool): Whether to visualize the results.
 
     Returns:
     - gpd.GeoSeries: GeoSeries containing estimated geographic locations.
     """
-    img_locs, headings = meta['meta_pt'], meta['heading']
-    geolocs = []
-    for i, bd in enumerate(bounds):
-        geolocs.extend(estimate_geolocations(bd, img_locs.iloc[i], headings.iloc[i]))
+    bounds = bounds.merge(meta[['meta_pt', 'heading']], left_on='image_index', right_index=True)
+    geolocs = bounds.apply(lambda row: estimate_geolocations(row['coords'], row['meta_pt'], row['heading']), axis=1)
 
-    geolocs = gpd.GeoSeries(geolocs)
     if visualize:
         fig, ax = plt.subplots(figsize=(8, 8))
-        geolocs.plot(ax=ax, markersize=5, color='red')
+        unique_labels = bounds['label'].unique()
+        cmap = get_cmap('tab10') 
+
+        for idx, label in enumerate(unique_labels):
+            label_geolocs = gpd.GeoSeries([geoloc for geoloc, lbl in zip(geolocs, bounds['label']) if lbl == label])
+            label_geolocs.plot(ax=ax, markersize=5, color=cmap(idx), label=label)
+
         gpd.GeoSeries(meta['geometry']).plot(ax=ax, markersize=5)
-        
+        plt.legend()
+        plt.show()
+
     return gpd.GeoSeries(geolocs)
     
 def new_position(point: Point, heading: float, distance: float) -> Point:
