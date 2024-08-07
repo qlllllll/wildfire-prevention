@@ -23,7 +23,7 @@ from typing import Any, List, Dict, Optional, Union, Tuple
 
 from transformers import AutoModelForMaskGeneration, AutoProcessor, pipeline
 
-DEVICE = "cuda:1" if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 @dataclass
 class BoundingBox:
@@ -362,13 +362,14 @@ def reformat_detections(detections: pd.Series) -> Dict[str, pd.Series]:
     data = [{
         'label': row['detections'].label,
         'mask': row['detections'].mask,
-        'original_index': row['index']
+        'box': row['detections'].box,
+        'image_index': row['index']
     } for _, row in obj.iterrows()]
     
     full_df = pd.DataFrame(data)
     grouped = full_df.groupby('label')
     
-    return {label: group.drop(['label'], axis=1).groupby('original_index').agg(list)['mask'] for label, group in grouped}
+    return {label: group.drop(['label'], axis=1).groupby('original_index').agg(list) for label, group in grouped}
 
 def get_intrinsics(H,W):
     """
@@ -559,7 +560,7 @@ def group_distances(distances: pd.DataFrame, label: str, fn: callable = min) -> 
     - pd.DataFrame: DataFrame containing the grouped distances.
     """
     distances[label] = distances[label].apply(tuple)
-    return distances.groupby(['original_index', label])['distance'].agg(fn).reset_index().groupby('original_index')['distance'].agg(list)
+    return distances.groupby(['image_index', label])['distance'].agg(fn).reset_index().groupby('image_index')['distance'].agg(list)
 
 def nearest_object_existence(
     gdf: gpd.GeoDataFrame, objs: gpd.GeoDataFrame, meta: pd.DataFrame, 

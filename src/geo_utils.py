@@ -17,7 +17,7 @@ from scipy.spatial.distance import cdist
 import itertools
 from typing import Any, List, Dict, Optional, Union, Tuple
 
-GOOGLE_MAPS_API_KEY = ...
+GOOGLE_MAPS_API_KEY = "AIzaSyBfDlNnEsnNGbp5bxzGI3xpZTHOBHzCHdQ"
 PARCEL_URL = "https://data.cityofberkeley.info/api/geospatial/bhxd-e6up?method=export&format=GeoJSON"
 
 
