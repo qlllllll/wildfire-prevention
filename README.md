@@ -103,3 +103,5 @@ from object_detection_utils import estimate_object_locations
 # Estimate geographic locations for the detected objects
 geoloc_results = estimate_object_locations(re_detections[['image_index','coords', 'label']], meta=sample_points, visualize=True)
 ```
+
+For more information, see the [API Documentation](https://qlllllll.github.io/fire-risk-object-detection/).
