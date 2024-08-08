@@ -1,3 +1,7 @@
+"""
+:var dist:
+"""
+
 import math
 import numpy as np
 from shapely.geometry import Point, LineString, Polygon, box, MultiPolygon
