@@ -5,12 +5,21 @@ import matplotlib.pyplot as plt
 import random
 from typing import Union, List, Optional, Dict
 from PIL import Image
+import webcolors
+
 from object_detection_utils import *
 
-COLORS = [[0.000, 0.447, 0.741], [0.850, 0.325, 0.098], [0.929, 0.694, 0.125],
-          [0.494, 0.184, 0.556], [0.466, 0.674, 0.188], [0.301, 0.745, 0.933]]
-
 def annotate(image: Union[Image.Image, np.ndarray], detection_results: List[DetectionResult]) -> np.ndarray:
+    """
+    Annotate image with bounding boxes and masks for detection results.
+
+    Args:
+    - image (Union[Image.Image, np.ndarray]): The image to be annotated.
+    - detection_results (List[DetectionResult]): List of detection results.
+
+    Returns:
+    - np.ndarray: Annotated image in numpy array format.
+    """
     # Convert PIL Image to OpenCV format
     image_cv2 = np.array(image) if isinstance(image, Image.Image) else image
     image_cv2 = cv2.cvtColor(image_cv2, cv2.COLOR_RGB2BGR)
@@ -38,41 +47,123 @@ def annotate(image: Union[Image.Image, np.ndarray], detection_results: List[Dete
 
     return cv2.cvtColor(image_cv2, cv2.COLOR_BGR2RGB)
 
-def estimate_locations(dists: pd.Series, index: int) -> None:
+def annotate_mask_dist(image, row, label1, label2, save_name=None):
     """
-    Estimates the locations by plotting the center for coordinates and linking the paired points,
-    marking the distance between them.
+    Annotate image with masks and distance information for specified labels.
 
     Args:
-    - image_series (pd.Series): Series containing the image data and coordinates.
-    - index (int): The image index to plot.
+    - image (Union[Image.Image, np.ndarray]): The image to be annotated.
+    - row (pd.Series): The row containing the data for annotation.
+    - label1 (str): First label for annotation.
+    - label2 (str): Second label for annotation.
+    - save_name (Optional[str]): Path to save the annotated image. Defaults to None.
+
+    Returns:
+    - None
     """
+    plt.figure(figsize=(10, 6))
+    ax = plt.gca()
+    image_cv2 = np.array(image) if isinstance(image, Image.Image) else image
+    image_cv2 = cv2.cvtColor(image_cv2, cv2.COLOR_RGB2BGR)
+
+    padding = 15
+    image_cv2 = cv2.copyMakeBorder(image_cv2, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=[255, 255, 255])
+
+    colors = random_named_css_colors(2)
+
+    for index, lbl in enumerate([label1, label2]): 
+        xmin, ymin, _, _ = row[f'box_{lbl}']
+        xmin += padding
+        ymin += padding
+    
+        mask = np.array(row[f'mask_{lbl}'])
+        mask_uint8 = (mask * 255).astype(np.uint8)
+        contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        color_name = colors[index]
+        color = webcolors.name_to_rgb(color_name)
+        color = (color.red, color.green, color.blue)
+        cv2.drawContours(image_cv2, [c + [padding, padding] for c in contours], -1, color, 2)
+
+        obj_idx = row[f"object_index_{lbl}"]
+        text = f'{lbl} [{obj_idx}]: {row["distance"]:.5f}'
+        (text_width, text_height), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.rectangle(image_cv2, (xmin + 5, ymin - text_height - baseline), 
+                      (xmin + 5 + text_width, ymin + baseline), color, thickness=cv2.FILLED)
+        cv2.putText(image_cv2, text, (xmin + 5, ymin), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    
+    image_cv2 = cv2.cvtColor(image_cv2, cv2.COLOR_BGR2RGB)
+
+    plt.imshow(image_cv2)
+    plt.axis('off')
+    if save_name:
+        plt.savefig(save_name, bbox_inches='tight')
+    plt.show()
+
+def estimate_locations(dists: pd.DataFrame, index: int, label1: str, label2: str) -> None:
     df = dists[dists['image_index'] == index]
     
-    fig, ax = plt.subplots(figsize=(4, 4))
-    ax = plt.gca()
-    
-    for _, row in df.iterrows():
-        coords1 = row[1]
-        coords2 = row[2]
-        distance = row['distance']
+    fig, ax = plt.subplots()
+    all_coords = []
+    annotations = []
 
-        center1 = np.mean([[coord[0], coord[2]] for coord in coords1], axis=0)  
-        center2 = np.mean([[coord[0], coord[2]] for coord in coords2], axis=0) 
+    for _, row in df.iterrows():
+        coords1 = np.array([[coord[0], coord[2]] for coord in row[f"coords_{label1}"]])
+        coords2 = np.array([[coord[0], coord[2]] for coord in row[f"coords_{label2}"]])
+        distance, obj_index1, obj_index2 = row['distance'], row[f"object_index_{label1}"], row[f"object_index_{label2}"]
         
-        ax.plot(center1[0], center1[1], 'go', label=dists.columns[1][7:] if _ == 0 else "")
-        ax.plot(center2[0], center2[1], 'ro', label=dists.columns[2][7:] if _ == 0 else "")
+        all_coords.extend(coords1)
+        all_coords.extend(coords2)
         
-        ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'b--')
-        
-        mid_point = ((center1[0] + center_house[0]) / 2, (center1[1] + center2[1]) / 2)
-        ax.text(mid_point[0], mid_point[1], f'{distance:.5f}', fontsize=12, color='blue')
-    
+        dist_matrix = np.linalg.norm(coords1[:, np.newaxis] - coords2, axis=2)
+        min_dist_idx = np.unravel_index(np.argmin(dist_matrix), dist_matrix.shape)
+        point1, point2 = coords1[min_dist_idx[0]], coords2[min_dist_idx[1]]
+
+        ax.plot(*point1, 'go', label=label1 if _ == 0 else "")
+        ax.plot(*point2, 'ro', label=label2 if _ == 0 else "")
+
+        ax.plot(*zip(point1, point2), 'b--')
+
+        ax.text(*point1, f'{obj_index1}', fontsize=12, color='green')
+        ax.text(*point2, f'{obj_index2}', fontsize=12, color='red')
+
+        mid_point = np.mean([point1, point2], axis=0)
+
+        offset_y = 10
+        for ann in annotations:
+            if np.abs(ann[0] - mid_point[0]) < 0.1:  
+                offset_y += 15  
+
+        annotation = ax.annotate(f'{distance:.5f}', xy=mid_point, textcoords="offset points",
+                                 xytext=(0, offset_y), ha='center', fontsize=10, color='blue',
+                                 bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="blue", lw=0, alpha=0))
+        annotations.append((mid_point[0], mid_point[1] + offset_y))
+
+    all_coords = np.array(all_coords)
+    padding = 1
+    ax.set_xlim(all_coords[:, 0].min() - padding, all_coords[:, 0].max() + padding)
+    ax.set_ylim(all_coords[:, 1].min() - padding, all_coords[:, 1].max() + padding)
+
     plt.legend()
-    plt.axis('off')
+    plt.xlabel('X')
+    plt.ylabel('Z')
+    plt.title('Closest Points on X-Z Plane')
+    plt.axis('equal')
     plt.show()
-    
+
 def plot_results(pil_img, scores: List[float], labels: List[str], boxes: List[List[int]]) -> None:
+    """
+    Plots detection results on an image.
+
+    Args:
+    - pil_img (Image.Image): The image to be plotted.
+    - scores (List[float]): List of scores for each detection.
+    - labels (List[str]): List of labels for each detection.
+    - boxes (List[List[int]]): List of bounding boxes for each detection.
+
+    Returns:
+    - None
+    """
     plt.figure(figsize=(16, 10))
     plt.imshow(pil_img)
     ax = plt.gca()
@@ -86,36 +177,22 @@ def plot_results(pil_img, scores: List[float], labels: List[str], boxes: List[Li
     plt.axis('off')
     plt.show()
 
-def plot_dist(pil_img, row: pd.Series, save_name: Optional[str] = None) -> None:
-    plt.figure(figsize=(6, 6))
-    plt.imshow(pil_img)
-    ax = plt.gca()
-    colors = COLORS * 100
-    
-    xmin, ymin, xmax, ymax = row.iloc[-2]
-    ax.add_patch(plt.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
-                               fill=False, color=colors[0], linewidth=2))
-    ax.text(xmin + 5, ymin - 10, f"{row.index[-2][4:]}: {row['distance']:0.5f}", fontsize=10, color='white',
-            bbox=dict(facecolor=colors[0], alpha=0.7, edgecolor='none'))
-
-    xmin, ymin, xmax, ymax = row.iloc[-1]
-    ax.add_patch(plt.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
-                               fill=False, color=colors[1], linewidth=2))
-    ax.text(xmin + 5, ymin - 10, f"{row.index[-1][4:]}: {row['distance']:0.5f}", fontsize=10, color='white', 
-            bbox=dict(facecolor=colors[1], alpha=0.7, edgecolor='none'))
-
-    plt.axis('off')
-
-    if save_name:
-        plt.savefig(save_name, bbox_inches='tight')
-         
-    plt.show()
-
 def plot_detections(
     image: Union[Image.Image, np.ndarray],
     detections: List[DetectionResult],
     save_name: Optional[str] = None
 ) -> None:
+    """
+    Plots detections on an image.
+
+    Args:
+    - image (Union[Image.Image, np.ndarray]): The image to be plotted.
+    - detections (List[DetectionResult]): List of detection results.
+    - save_name (Optional[str]): Path to save the plotted image. Defaults to None.
+
+    Returns:
+    - None
+    """
     annotated_image = annotate(image, detections)
     plt.imshow(annotated_image)
     plt.axis('off')
@@ -133,116 +210,17 @@ def random_named_css_colors(num_colors: int) -> List[str]:
     Returns:
     - list: List of randomly selected named CSS colors.
     """
-    # List of named CSS colors
-    named_css_colors = [
-        'aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige', 'bisque', 'black', 'blanchedalmond',
-        'blue', 'blueviolet', 'brown', 'burlywood', 'cadetblue', 'chartreuse', 'chocolate', 'coral', 'cornflowerblue',
-        'cornsilk', 'crimson', 'cyan', 'darkblue', 'darkcyan', 'darkgoldenrod', 'darkgray', 'darkgreen', 'darkgrey',
-        'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen',
-        'darkslateblue', 'darkslategray', 'darkslategrey', 'darkturquoise', 'darkviolet', 'deeppink', 'deepskyblue',
-        'dimgray', 'dimgrey', 'dodgerblue', 'firebrick', 'floralwhite', 'forestgreen', 'fuchsia', 'gainsboro', 'ghostwhite',
-        'gold', 'goldenrod', 'gray', 'green', 'greenyellow', 'grey', 'honeydew', 'hotpink', 'indianred', 'indigo', 'ivory',
-        'khaki', 'lavender', 'lavenderblush', 'lawngreen', 'lemonchiffon', 'lightblue', 'lightcoral', 'lightcyan', 'lightgoldenrodyellow',
-        'lightgray', 'lightgreen', 'lightgrey', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightslategray',
-        'lightslategrey', 'lightsteelblue', 'lightyellow', 'lime', 'limegreen', 'linen', 'magenta', 'maroon', 'mediumaquamarine',
-        'mediumblue', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise',
-        'mediumvioletred', 'midnightblue', 'mintcream', 'mistyrose', 'moccasin', 'navajowhite', 'navy', 'oldlace', 'olive',
-        'olivedrab', 'orange', 'orangered', 'orchid', 'palegoldenrod', 'palegreen', 'paleturquoise', 'palevioletred', 'papayawhip',
-        'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', 'rebeccapurple', 'red', 'rosybrown', 'royalblue', 'saddlebrown',
-        'salmon', 'sandybrown', 'seagreen', 'seashell', 'sienna', 'silver', 'skyblue', 'slateblue', 'slategray', 'slategrey',
-        'snow', 'springgreen', 'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'white',
-        'whitesmoke', 'yellow', 'yellowgreen'
-    ]
+    colors = ['aqua', 'black', 'blue', 'blueviolet', 'brown', 'burlywood', 'cadetblue', 'chartreuse', 'chocolate', 'coral', 
+             'cornflowerblue', 'crimson', 'cyan', 'darkblue', 'darkcyan', 'darkgoldenrod', 'darkgray', 'darkgreen',
+             'darkgrey', 'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon',
+             'darkseagreen', 'darkslateblue', 'darkslategray', 'darkslategrey', 'darkturquoise', 'darkviolet', 'deeppink', 
+             'deepskyblue', 'dimgray', 'dimgrey', 'dodgerblue', 'firebrick', 'forestgreen', 'fuchsia', 'goldenrod', 'gray', 
+             'green', 'grey', 'hotpink', 'indianred', 'indigo', 'lawngreen', 'lightcoral', 'lightsalmon', 
+             'lightseagreen',  'lightslategray', 'lightslategrey', 'lime', 'limegreen', 
+             'magenta', 'maroon', 'mediumaquamarine', 'mediumblue', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 
+             'mediumslateblue', 'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'navy', 'olive', 
+             'olivedrab', 'orange', 'orangered', 'orchid', 'palevioletred', 'peru', 'plum', 'purple', 'red', 'rosybrown', 
+             'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'sienna', 'silver', 'skyblue', 'slateblue', 
+             'slategray', 'slategrey', 'springgreen', 'steelblue', 'tan', 'teal', 'tomato', 'turquoise', 'violet', 'yellowgreen']
 
-    # Sample random named CSS colors
-    return random.sample(named_css_colors, min(num_colors, len(named_css_colors)))
-
-def plot_detections_plotly(
-    image: np.ndarray,
-    detections: List[DetectionResult],
-    class_colors: Optional[Dict[str, str]] = None
-) -> None:
-    # If class_colors is not provided, generate random colors for each class
-    if class_colors is None:
-        num_detections = len(detections)
-        colors = random_named_css_colors(num_detections)
-        class_colors = {}
-        for i in range(num_detections):
-            class_colors[i] = colors[i]
-
-
-    fig = px.imshow(image)
-
-    # Add bounding boxes
-    shapes = []
-    annotations = []
-    for idx, detection in enumerate(detections):
-        label = detection.label
-        box = detection.box
-        score = detection.score
-        mask = detection.mask
-
-        polygon = mask_to_polygon(mask)
-
-        fig.add_trace(go.Scatter(
-            x=[point[0] for point in polygon] + [polygon[0][0]],
-            y=[point[1] for point in polygon] + [polygon[0][1]],
-            mode='lines',
-            line=dict(color=class_colors[idx], width=2),
-            fill='toself',
-            name=f"{label}: {score:.2f}"
-        ))
-
-        xmin, ymin, xmax, ymax = box.xyxy
-        shape = [
-            dict(
-                type="rect",
-                xref="x", yref="y",
-                x0=xmin, y0=ymin,
-                x1=xmax, y1=ymax,
-                line=dict(color=class_colors[idx])
-            )
-        ]
-        annotation = [
-            dict(
-                x=(xmin+xmax) // 2, y=(ymin+ymax) // 2,
-                xref="x", yref="y",
-                text=f"{label}: {score:.2f}",
-            )
-        ]
-
-        shapes.append(shape)
-        annotations.append(annotation)
-
-    # Update layout
-    button_shapes = [dict(label="None",method="relayout",args=["shapes", []])]
-    button_shapes = button_shapes + [
-        dict(label=f"Detection {idx+1}",method="relayout",args=["shapes", shape]) for idx, shape in enumerate(shapes)
-    ]
-    button_shapes = button_shapes + [dict(label="All", method="relayout", args=["shapes", sum(shapes, [])])]
-
-    fig.update_layout(
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
-        # margin=dict(l=0, r=0, t=0, b=0),
-        showlegend=True,
-        updatemenus=[
-            dict(
-                type="buttons",
-                direction="up",
-                buttons=button_shapes
-            )
-        ],
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
-    )
-
-    # Show plot
-    fig.show()
-
-     
+    return random.sample(colors, min(num_colors, len(colors)))
