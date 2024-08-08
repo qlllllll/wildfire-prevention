@@ -1,5 +1,5 @@
 """
-:var dist:
+@var dist:
 """
 
 import math
