@@ -101,6 +101,19 @@ def annotate_mask_dist(image, row, label1, label2, save_name=None):
     plt.show()
 
 def estimate_locations(dists: pd.DataFrame, index: int, label1: str, label2: str) -> None:
+    """
+    Visualize the closest points between two sets of coordinates on the X-Z plane, linking them with lines
+    and annotating their distances for a specific image index.
+
+    Args:
+    - dists (pd.DataFrame): DataFrame containing distances and coordinate information.
+    - index (int): The specific image index to filter the DataFrame and visualize the results.
+    - label1 (str): The label for the first set of coordinates.
+    - label2 (str): The label for the second set of coordinates.
+
+    Returns:
+    - None
+    """
     df = dists[dists['image_index'] == index]
     
     fig, ax = plt.subplots()

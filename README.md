@@ -43,7 +43,7 @@ For object detection on a series of images loaded from a folder, the following f
 - `depth_estimate`: Returns a series of depth maps approximated with Zoe-Depth.
 - `convert_depth_to_coords`: Projects pixels onto a 3D plane using a sample camera intrinsic matrix.
 - `object_grounded_segmentation`: Returns a series of `DetectionResult` objects, which include [score, label, box, mask] from Grounding-SAM.
-- `reformat_detections`: Returns a dictionary of `pd.Series` grouped by label.
+- `reformat_detections`: Returns a DataFrame of objects, organized by image and label.
 - `generate_3d_bounding_boxes`: Estimates the corner coordinates of the 3D bounding box for the object series.
 
 ```python
@@ -61,7 +61,7 @@ coords = convert_depth_to_coords(depth_maps)
 # Perform object detection
 detections = object_grounded_segmentation(images, ['vegetation', 'house', 'fire hydrant'])
 
-# Reformat detections into a dictionary grouped by label
+# Reformat detections into a DataFrame of objects
 re_detections = reformat_detections(detections)
 
 # Estimate 3D bounding boxes for objects
@@ -103,3 +103,5 @@ from object_detection_utils import estimate_object_locations
 # Estimate geographic locations for the detected objects
 geoloc_results = estimate_object_locations(re_detections[['image_index','coords', 'label']], meta=sample_points, visualize=True)
 ```
+
+For more information, see the [API Documentation](https://qlllllll.github.io/fire-risk-object-detection/).
