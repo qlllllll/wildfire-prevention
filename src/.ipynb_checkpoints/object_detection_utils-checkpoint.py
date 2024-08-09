@@ -12,7 +12,7 @@ from scipy.spatial.distance import cdist
 from matplotlib.patches import Circle
 import itertools
 import os
-import req
+import requests
 import sys
 from contextlib import contextmanager
 
@@ -352,13 +352,13 @@ def object_grounded_segmentation(image_series: pd.Series, text_prompt: List[str]
 
 def reformat_detections(detections: pd.Series) -> pd.DataFrame:
     """
-    Reformat detections into a structured DataFrame grouped by label.
+    Convert a series of detection results into a structured DataFrame.
 
     Args:
-    - detections (pd.Series): Series of detection results, where each element is a list of DetectionResult objects.
+    - detections (pd.Series): Series where each element is a list of DetectionResult objects.
 
     Returns:
-    - pd.DataFrame: DataFrame grouped by label, with each row containing masks, the original index, and other detection information.
+    - pd.DataFrame: DataFrame with columns for image index, label, mask, bounding box coordinates (box), score, and a unique object index for each detection grouped by image index and label.
     """
     df = detections.to_frame('detections')
 

@@ -17,9 +17,7 @@ from scipy.spatial.distance import cdist
 import itertools
 from typing import Any, List, Dict, Optional, Union, Tuple
 
-GOOGLE_MAPS_API_KEY = ...
 PARCEL_URL = "https://data.cityofberkeley.info/api/geospatial/bhxd-e6up?method=export&format=GeoJSON"
-
 
 def heading(line: LineString) -> float:
     """
@@ -112,7 +110,7 @@ def clip_gdf_to_bbox(gdf: gpd.GeoDataFrame, bbox: Polygon, crs: str = "EPSG:4326
     bounded_gdf = gpd.overlay(gdf, bbox_gdf, how='intersection')
     return bounded_gdf
 
-def generate_network_pts(bbox: Polygon, samp_dist: float = 0.00015, min_road_len: int = 5) -> gpd.GeoDataFrame:
+def generate_network_pts(bbox: Polygon, api_key: str, samp_dist: float = 0.00015, min_road_len: int = 5) -> gpd.GeoDataFrame:
     """
     Generate network points within a bounding box.
 
@@ -131,13 +129,13 @@ def generate_network_pts(bbox: Polygon, samp_dist: float = 0.00015, min_road_len
     edges['points'] = edges.apply(lambda row: interpolate(row['geometry'], samp_dist), axis=1)
     edges['heading'] = edges['geometry'].apply(lambda x: round(heading(x)))
     pts = edges.explode('points')
-    pts[['meta_pt', 'pano_id']] = load_gsv_meta_from_coords(pts).apply(pd.Series)
+    pts[['meta_pt', 'pano_id']] = load_gsv_meta_from_coords(pts, api_key).apply(pd.Series)
     pts['meta_pt_str'] = pts['meta_pt'].astype(str)
     filtered_pts = pts.groupby(['meta_pt_str', 'pano_id']).apply(filter_headings).reset_index(drop=True).drop(['meta_pt_str'], axis=1)
     filtered_pts['perp_heading'] = filtered_pts.apply(lambda row: perpendicular_headings(row['geometry'], row['heading']), axis=1)
     return filtered_pts.explode('perp_heading')
 
-def get_area_bbox(area: str, key: str = GOOGLE_MAPS_API_KEY) -> Polygon:
+def get_area_bbox(area: str, api_key: str = GOOGLE_MAPS_API_KEY) -> Polygon:
     """
     Get the bounding box for a specified area.
 
@@ -150,7 +148,7 @@ def get_area_bbox(area: str, key: str = GOOGLE_MAPS_API_KEY) -> Polygon:
     """
     resp = requests.get(
         url='https://maps.googleapis.com/maps/api/geocode/json',
-        params={'address': re.sub(r'\s*,\s*', ',+', area), 'key': key}
+        params={'address': re.sub(r'\s*,\s*', ',+', area), 'key': api_key}
     )
     resp.raise_for_status()
 
@@ -238,10 +236,10 @@ def join_parcels(pts: gpd.GeoDataFrame, parcels: gpd.GeoDataFrame) -> gpd.GeoDat
     Returns:
     - gpd.GeoDataFrame: The joined GeoDataFrame.
     """
-    joined_gdf = pts.sjoin_nearest(bounded_gdf, how='inner', distance_col='distance')
+    joined_gdf = pts.sjoin_nearest(parcels, how='inner', distance_col='distance')
 
 def load_gsv_meta_from_coords(
-    df: pd.DataFrame, pt_label: str = 'points', size: str = '640x640', key: str = GOOGLE_MAPS_API_KEY) -> pd.Series:
+    df: pd.DataFrame, api_key: str, pt_label: str = 'points', size: str = '640x640') -> pd.Series:
     """
     Load Google Street View metadata from coordinates.
 
@@ -258,7 +256,7 @@ def load_gsv_meta_from_coords(
         params = {
             'size': size,
             'location': f"{row[pt_label].y},{row[pt_label].x}",
-            'key': key,
+            'key': api_key,
         }
 
         url = 'https://maps.googleapis.com/maps/api/streetview/metadata'
@@ -272,7 +270,7 @@ def load_gsv_meta_from_coords(
     return df.progress_apply(get_single_gsv, axis=1)
 
 def load_gsv_img_from_coords(
-    df: pd.DataFrame, save_dir='gsv_images', pt_label: str = 'points', heading_label: str = 'perp_heading', size: str = '640x640', key: str = GOOGLE_MAPS_API_KEY) -> None:
+    df: pd.DataFrame, api_key: str, save_dir='gsv_images', pt_label: str = 'points', heading_label: str = 'perp_heading', size: str = '640x640') -> None:
     """
     Load Google Street View images from coordinates.
 
@@ -292,7 +290,7 @@ def load_gsv_img_from_coords(
         params = {
             'size': size,
             'location': f"{row[pt_label].y},{row[pt_label].x}",
-            'key': key,
+            'key': api_key,
             'heading': row[heading_label]
         }
 
