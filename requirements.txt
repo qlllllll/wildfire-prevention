@@ -1,6 +1,6 @@
 osmnx
 timm==0.6.7
-git+https://github.com/huggingface/transformers
+transformers @ git+https://github.com/huggingface/transformers
 numpy
 shapely
 matplotlib
@@ -13,3 +13,4 @@ opencv-python
 torch
 torchvision
 dataclasses
+vistdf @ git+https://github.com/vista-data/VistDF.git
