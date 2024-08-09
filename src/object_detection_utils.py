@@ -326,8 +326,9 @@ def grounded_segmentation(
     if isinstance(image, str):
         image = load_image(image)
 
-    detections = detect(image, labels, threshold, detector_id)
-    detections = segment(image, detections, polygon_refinement, segmenter_id)
+    with suppress_output():
+        detections = detect(image, labels, threshold, detector_id)
+        detections = segment(image, detections, polygon_refinement, segmenter_id)
 
     return detections
 
