@@ -113,7 +113,7 @@ class LazySeries(pd.Series):
         return LazySeries(data=self._val, fn=pd.Series.explode, params=({}, {}), parent=self, fn_name="explode", result_type=self.dtype)
 
     def to_frame(self, name=None):
-        return LazyDataFrame(data=pd.DataFrame({name: self._val}, parent=self))
+        return LazyDataFrame(data=pd.DataFrame({name: self._val}), parent=self)
 
     def groupby(self, by=None, axis=0, level=None, as_index=True, sort=True, group_keys=True, squeeze=False, observed=False, dropna=True):
         return LazyGroupBy(self, by, axis, level, as_index, sort, group_keys, squeeze, observed, dropna)

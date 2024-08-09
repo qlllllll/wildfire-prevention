@@ -169,7 +169,6 @@ def load_images(folder_path: str = './gsv_images', name: str = 'gsv') -> pd.Seri
     image_data = [open_img(os.path.join(folder_path, file_name)) for file_name in sorted(os.listdir(folder_path)) if file_name.endswith(('.png', '.jpg', '.jpeg'))]
     return pd.Series(image_data, name=name)
 
-
 def get_boxes(results: List[DetectionResult]) -> List[List[List[float]]]: 
     """
     Extract bounding box coordinates from a list of detection results.

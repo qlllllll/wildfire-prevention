@@ -135,7 +135,7 @@ def generate_network_pts(bbox: Polygon, api_key: str, samp_dist: float = 0.00015
     filtered_pts['perp_heading'] = filtered_pts.apply(lambda row: perpendicular_headings(row['geometry'], row['heading']), axis=1)
     return filtered_pts.explode('perp_heading')
 
-def get_area_bbox(area: str, api_key: str = GOOGLE_MAPS_API_KEY) -> Polygon:
+def get_area_bbox(area: str, api_key: str) -> Polygon:
     """
     Get the bounding box for a specified area.
 
