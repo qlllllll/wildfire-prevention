@@ -346,7 +346,7 @@ def object_grounded_segmentation(image_series: pd.Series, text_prompt: List[str]
     detector_id = "IDEA-Research/grounding-dino-tiny"
     segmenter_id = "facebook/sam-vit-base"
     
-    detections = image_series.apply(lambda img: grounded_segmentation(image=img, labels=text_prompt, threshold=0.3, polygon_refinement=True, detector_id=detector_id, segmenter_id=segmenter_id))
+    detections = image_series.apply(lambda img: grounded_segmentation(image=img.image, labels=text_prompt, threshold=0.3, polygon_refinement=True, detector_id=detector_id, segmenter_id=segmenter_id))
 
     return detections 
 
@@ -467,7 +467,7 @@ def depth_estimate(img_series: pd.Series) -> pd.Series:
         model_zoe_k = torch.hub.load(repo, "ZoeD_K", pretrained=True)
     
     zoe = model_zoe_k.to(DEVICE)
-    return img_series.apply(zoe.infer_pil)
+    return img_series.apply(lambda img: zoe.infer_pil(img.image))
 
 def convert_depth_to_coords(depth_series: pd.Series, est_func=depth_to_points) -> pd.Series:
     """
