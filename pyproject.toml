@@ -8,6 +8,8 @@ html-output = "docs/api"
 project-base-dir = "."
 docformat = "epytext"
 intersphinx = "https://docs.python.org/3/objects.inv"
+cls-member-order = "source"
+mod-member-order = "source"
 privacy = ['HIDDEN:src.geo_utils.GOOGLE_MAPS_API_KEY', 
   'HIDDEN:src.geo_utils.PARCEL_URL', 
   'HIDDEN:src.geo_utils.join_parcels', 
