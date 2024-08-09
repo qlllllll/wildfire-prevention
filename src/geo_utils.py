@@ -16,6 +16,7 @@ import warnings
 from scipy.spatial.distance import cdist
 import itertools
 from typing import Any, List, Dict, Optional, Union, Tuple
+from vistdf.images import ImagesFromAPI
 
 PARCEL_URL = "https://data.cityofberkeley.info/api/geospatial/bhxd-e6up?method=export&format=GeoJSON"
 
@@ -270,7 +271,13 @@ def load_gsv_meta_from_coords(
     return df.progress_apply(get_single_gsv, axis=1)
 
 def load_gsv_img_from_coords(
-    df: pd.DataFrame, api_key: str, save_dir='gsv_images', pt_label: str = 'points', heading_label: str = 'perp_heading', size: str = '640x640') -> None:
+    df: pd.DataFrame,
+    api_key: str,
+    save_dir='gsv_images',
+    pt_label: str = 'points',
+    heading_label: str = 'perp_heading',
+    size: str = '640x640'
+) -> "pd.DataFrame":
     """
     Load Google Street View images from coordinates.
 
@@ -286,22 +293,26 @@ def load_gsv_img_from_coords(
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    def get_single_gsv(row):
+    def get_single_gsv(idx):
+        pano_id, heading = idx.split("_")
+
         params = {
             'size': size,
-            'location': f"{row[pt_label].y},{row[pt_label].x}",
+            'pano': pano_id,
             'key': api_key,
-            'heading': row[heading_label]
+            'heading': heading
         }
 
         url = 'https://maps.googleapis.com/maps/api/streetview'
         response = requests.get(url, params=params)
         response.raise_for_status()
 
-        image = Image.open(BytesIO(response.content))
-        filename = f"{row['pano_id']}_{row[heading_label]}.jpg"
-        filepath = os.path.join(save_dir, filename)
-        image.save(filepath)
+        image = Image.open(BytesIO(response.content)).convert('RGB')
+        return np.asarray(image)[:, :, ::-1]
+
+    ids = (df.pano_id.map(str) + "_" + df.heading).to_list()
+    images = ImagesFromAPI(ids, get_single_gsv, save_dir)
 
     tqdm.pandas()
-    df.progress_apply(get_single_gsv, axis=1)
+    img_series = pd.Series([*images])
+    return df.assign(image=img_series)
